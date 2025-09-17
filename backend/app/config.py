@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -60,7 +61,12 @@ def load_settings() -> Settings:
 
 def save_settings(settings: Settings) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(settings.model_dump_json(indent=2, ensure_ascii=False), encoding="utf-8")
+    serialized = json.dumps(
+        settings.model_dump(),
+        ensure_ascii=False,
+        indent=2,
+    )
+    CONFIG_PATH.write_text(serialized, encoding="utf-8")
 
 
 def update_settings(partial: Dict[str, Any]) -> Settings:

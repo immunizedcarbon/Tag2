@@ -1,64 +1,62 @@
-# Tag2 – Bundestag Explorer & Gemini Studio
+# Tag2 – Forschungswerkzeug für das Bundestag-DIP & Gemini
 
-Eine lokal betreibbare Forschungsoberfläche für das Dokumentations- und Informationssystem des Deutschen Bundestags (DIP) mit integriertem Gemini-Arbeitsbereich. Tag2 bündelt die Recherche in DIP-Datensätzen, Metadatenansichten und die KI-gestützte Nachbearbeitung ausgewählter Dokumente in einer einzigen Webanwendung.
+Tag2 bündelt eine schnelle Suche im Dokumentations- und Informationssystem des Deutschen Bundestags (DIP) mit einem Gemini-Arbeitsplatz für KI-gestützte Auswertungen. Die Anwendung läuft komplett lokal und eignet sich damit für vertrauliche Recherchen sowie explorative Analysen mit eigenen Vorgaben.
 
-> Repository: https://github.com/immunizedcarbon/Tag2
-
-## Inhaltsverzeichnis
-- [Überblick](#überblick)
-- [Funktionen](#funktionen)
-- [Systemarchitektur](#systemarchitektur)
-- [Voraussetzungen](#voraussetzungen)
-- [Schnellstart (Kubuntu 24.04)](#schnellstart-kubuntu-2404)
-  - [Einmalige Installation](#einmalige-installation)
-  - [Anwendung starten (nach Installation)](#anwendung-starten-nach-installation)
-- [Konfiguration und API-Schlüssel](#konfiguration-und-api-schlüssel)
-- [Arbeiten mit der Oberfläche](#arbeiten-mit-der-oberfläche)
-- [Entwicklung & Tests](#entwicklung--tests)
-- [Produktiver Betrieb](#produktiver-betrieb)
-- [Troubleshooting](#troubleshooting)
-- [Lizenz](#lizenz)
+## Inhaltsübersicht
+1. [Überblick](#überblick)
+2. [Funktionshighlights](#funktionshighlights)
+3. [Technischer Aufbau](#technischer-aufbau)
+4. [Systemvoraussetzungen](#systemvoraussetzungen)
+5. [Schnellstart auf Kubuntu 24.04](#schnellstart-auf-kubuntu-2404)
+   1. [Alles-in-einem-Befehl](#alles-in-einem-befehl)
+   2. [Start bei späteren Sitzungen](#start-bei-späteren-sitzungen)
+6. [Konfiguration & API-Schlüssel](#konfiguration--api-schlüssel)
+7. [Arbeiten mit der Oberfläche](#arbeiten-mit-der-oberfläche)
+8. [Nützliche Befehle für Entwicklung & Tests](#nützliche-befehle-für-entwicklung--tests)
+9. [Troubleshooting](#troubleshooting)
+10. [Lizenzhinweis](#lizenzhinweis)
 
 ## Überblick
-Tag2 kombiniert einen FastAPI-gestützten Backend-Proxy für die Bundestag-DIP-API mit einem modernen React-Frontend. Die Anwendung ermöglicht das Filtern und Durchsuchen verschiedener DIP-Datensätze, das Anzeigen relevanter Metadaten sowie das direkte Weiterreichen von Textinhalten an den Gemini-Assistenten für Zusammenfassungen, Übersetzungen oder eigene Anweisungen.【F:frontend/src/components/BundestagSearch.jsx†L1-L210】【F:frontend/src/components/GeminiWorkspace.jsx†L1-L205】
+Das Backend fungiert als sicherer Proxy zwischen dem lokalen Browser, der öffentlichen DIP-API und Googles Gemini-Modellen. Gleichzeitig liefert das React-Frontend komfortable Filter, Detailansichten und einen Chat-ähnlichen Arbeitsplatz für die Weiterverarbeitung von Dokumentinhalten. Sämtliche Kommunikation bleibt innerhalb Ihrer Maschine; lediglich externe API-Aufrufe verlassen das System.
 
-## Funktionen
-- **Intuitive Filtersuche** für Vorgänge, Drucksachen, Plenarprotokolle, Aktivitäten und Volltexte mit vordefinierten Auswahlfeldern (Wahlperioden, Vorgangstypen, Initiativen) und Live-Personensuche über die DIP-API inklusive Cursor-basiertem Nachladen weiterer Treffer.【F:frontend/src/components/BundestagSearch.jsx†L23-L246】
-- **Detailansichten mit Kontext** wie Wahlperiode, Abstract, Initiativen, PDF/XML-Quellenlinks sowie direkter Übergabe ausgewählter Inhalte an den Gemini-Assistenten.【F:frontend/src/components/BundestagSearch.jsx†L184-L331】
-- **Gemini-Arbeitsbereich** mit vordefinierten Aufgaben (Zusammenfassung, Stichpunkte, Kernaussagen, Übersetzung) oder frei definierbaren Prompts inklusive Temperature-Regler, Kontextfeldern und Ergebnisverwaltung.【F:frontend/src/components/GeminiWorkspace.jsx†L1-L205】【F:frontend/src/components/GeminiWorkspace.jsx†L205-L304】
-- **Konfigurations-UI** zum Hinterlegen von API-Keys, Standardfiltern, bevorzugter Sprache und Gemini-Standardeinstellungen – inklusive Autocomplete-Listen für Standardfilter und automatischer Sperre der übrigen Tabs, bis beide Schlüssel gesetzt sind.【F:frontend/src/App.jsx†L8-L116】【F:frontend/src/components/SettingsPanel.jsx†L1-L360】【F:backend/app/config.py†L10-L86】
-- **Sichere API-Vermittlung**: Das Backend kapselt Zugriffe auf die DIP-API und das Gemini-Modell, maskiert Schlüssel in Responses und stellt Health-, Such- und Analyse-Endpunkte bereit.【F:backend/app/main.py†L10-L154】
+## Funktionshighlights
+- **Mehrstufige Recherche**: Kombinierbare Filter (Wahlperioden, Vorgangstypen, Initiatoren, Freitext, Personensuche) erleichtern das Auffinden relevanter Vorgänge. Treffer lassen sich direkt in Detailansichten öffnen und weiterreichen.【F:frontend/src/components/BundestagSearch.jsx†L19-L331】
+- **Kontextsensitive Detailkarten**: Abstracts, Initiativen, verlinkte Quellen (PDF/XML) und Metadaten werden klar strukturiert angezeigt. Inhalte lassen sich per Mausklick an den Gemini-Tab übergeben.【F:frontend/src/components/BundestagSearch.jsx†L184-L309】
+- **Gemini-Workspace**: Vorgefertigte Aufgaben (Zusammenfassung, Kernaussagen, Übersetzung) und frei definierbare Prompts stehen bereit; Temperatur, Sprache und Stil können angepasst werden.【F:frontend/src/components/GeminiWorkspace.jsx†L1-L304】
+- **Konfigurationspanel mit Zugriffsschutz**: API-Schlüssel werden maskiert gespeichert, solange beide Schlüssel fehlen, bleiben Suche und Gemini-Tab gesperrt. Einstellungen decken Standardfilter, UI-Voreinstellungen und Gemini-Defaults ab.【F:frontend/src/App.jsx†L8-L116】【F:frontend/src/components/SettingsPanel.jsx†L1-L360】【F:backend/app/config.py†L10-L86】
+- **Stabile API-Vermittlung**: Asynchrone Requests zur DIP-API, validierte Konfigurationen und Fehlerbehandlung sorgen für zuverlässige Antworten; Gemini-Aufgaben werden sauber über das Backend geroutet.【F:backend/app/main.py†L10-L154】【F:backend/app/bundestag.py†L1-L199】【F:backend/app/gemini.py†L1-L87】
 
-## Systemarchitektur
+## Technischer Aufbau
 ```
 Tag2/
-├── backend/      FastAPI-Anwendung (DIP-Proxy, Konfiguration, Gemini-Connector)
-└── frontend/     Vite + React + Material UI Oberfläche
+├── backend/      FastAPI-Anwendung mit DIP-Proxy, Gemini-Connector & Konfiguration
+├── frontend/     Vite + React + Material UI Oberfläche
+└── scripts/      Hilfsskripte für Setup und kombinierten Dev-Server
 ```
-- Das Backend lädt und speichert Einstellungen in `backend/config/app_config.json`, ruft DIP-Endpunkte asynchron über `httpx` auf und leitet Gemini-Anfragen über das Google `google-genai` SDK weiter.【F:backend/app/bundestag.py†L1-L53】【F:backend/app/gemini.py†L1-L87】【F:backend/app/config.py†L10-L86】
-- Das Frontend nutzt React Query für Datenabfragen, Zustand via Zustand-Store und Material UI für Layout und Komponenten.【F:frontend/src/App.jsx†L1-L106】【F:frontend/src/store/appStore.js†L1-L13】
+- `backend/app/main.py` stellt REST-Endpunkte bereit (Gesundheitscheck, Konfiguration, DIP-Suche, Gemini-Aufgaben) und kümmert sich um CORS.【F:backend/app/main.py†L10-L154】
+- `backend/app/config.py` legt das Schema für gespeicherte Einstellungen fest und verwaltet `backend/config/app_config.json`.【F:backend/app/config.py†L10-L86】
+- `frontend/src` enthält React-Komponenten, Zustand (Zustand Store) und API-Client. Die Kommunikation mit dem Backend erfolgt über `frontend/src/api/client.js` mit einer konfigurierbaren Basis-URL.【F:frontend/src/api/client.js†L1-L16】
+- `scripts/bootstrap.sh` richtet Python-Venv, Pip-Abhängigkeiten und das Node.js-Frontend ein. `scripts/devserver.py` startet Backend & Frontend gemeinsam und beendet beide Prozesse sauber.【F:scripts/bootstrap.sh†L1-L68】【F:scripts/devserver.py†L1-L126】
 
-## Voraussetzungen
-- Kubuntu 24.04 (oder vergleichbar) mit sudo-Rechten
-- Python 3.12 inkl. `python3-venv`
-- Node.js 20.x und npm
-- Git, curl
+## Systemvoraussetzungen
+- Kubuntu 24.04 (oder eine vergleichbare Ubuntu-Distribution) mit sudo-Rechten
+- Python 3.12 inklusive `python3-venv`
+- Node.js 20.x und npm
+- Git und curl
+- Einen Google-Gemini-API-Schlüssel (Pflicht für KI-Funktionen) sowie optional einen DIP-API-Schlüssel für höhere Rate Limits
 
-> Tipp: Ein Google Gemini API-Key ist zwingend erforderlich, um den KI-Teil zu nutzen. Ein DIP-API-Key erhöht Rate Limits, ist aber optional.
-
-## Schnellstart (Kubuntu 24.04)
-### Einmalige Installation
-Kopiere und führe den Bootstrap-Skript aus. Er kümmert sich um Systempakete, Node.js 20, das Python-venv, Pip-Abhängigkeiten sowie das Frontend.
+## Schnellstart auf Kubuntu 24.04
+### Alles-in-einem-Befehl
+Der folgende Einzeiler erledigt auf einer frischen Kubuntu-Installation sämtliche Schritte: Paketinstallation, Repository-Klon, Abhängigkeits-Setup und Start beider Server. Kopieren, einfügen, Enter – anschließend läuft Tag2, bis Sie mit `Strg+C` abbrechen.
 
 ```bash
-cd ~/Tag2
-./scripts/bootstrap.sh
+bash -c 'set -euo pipefail; cd "$HOME"; sudo apt-get update; sudo apt-get install -y git curl python3 python3-venv python3-pip; if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]; then curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -; sudo apt-get install -y nodejs; fi; if [ ! -d "$HOME/Tag2" ]; then git clone https://github.com/immunizedcarbon/Tag2.git "$HOME/Tag2"; else cd "$HOME/Tag2" && git pull; fi; cd "$HOME/Tag2"; ./scripts/bootstrap.sh; source .venv/bin/activate; python scripts/devserver.py'
 ```
 
-> Der Skript fordert bei Bedarf nach `sudo`-Rechten, um fehlende Pakete (z. B. `python3.12-venv` oder Node.js 20) zu installieren. Nach Abschluss ist die virtuelle Umgebung `.venv` einsatzbereit.
+> Hinweis: Während des Ablaufs werden sudo-Berechtigungen benötigt (für Paketinstallationen bzw. NodeSource-Setup). Der Prozess endet erst, wenn Sie den Dev-Server mit `Strg+C` stoppen.
 
-### Anwendung starten (nach Installation)
-Aktiviere zunächst die virtuelle Umgebung und starte anschließend beide Server mit **einem einzigen** Befehl:
+### Start bei späteren Sitzungen
+Nach erfolgreichem Setup genügen diese drei Befehle, um Backend und Frontend erneut zu starten:
 
 ```bash
 cd ~/Tag2
@@ -66,36 +64,30 @@ source .venv/bin/activate
 python scripts/devserver.py
 ```
 
-Der Prozess startet FastAPI (`http://localhost:8000`) und das Vite-Frontend (`http://localhost:5173`) parallel. Zum Beenden genügt `Strg+C`. Die Umgebungsvariablen `TAG2_BACKEND_PORT`, `TAG2_FRONTEND_PORT` und `TAG2_FRONTEND_HOST` können bei Bedarf gesetzt werden, bevor der Befehl ausgeführt wird.【F:scripts/devserver.py†L24-L89】
-
-## Konfiguration und API-Schlüssel
-- Beim ersten Backend-Start wird `backend/config/app_config.json` mit Standardwerten erzeugt. Die Datei enthält Gemini-, Bundestag- und UI-Einstellungen.【F:backend/app/config.py†L10-L86】
-- API-Schlüssel kannst du entweder direkt in der Datei eintragen oder komfortabel im Reiter **Einstellungen** der Oberfläche hinterlegen. Solange kein DIP- und Gemini-Key gespeichert ist, bleiben die übrigen Tabs gesperrt und ein Hinweis fordert zum Hinterlegen auf; gespeicherte Schlüssel werden maskiert angezeigt.【F:frontend/src/App.jsx†L8-L116】【F:frontend/src/components/SettingsPanel.jsx†L1-L360】
-- Gemini-Optionen umfassen Modell, System-Prompt und Temperatur. Für die DIP-Suche lassen sich Basis-URL, Standard-Datensatz und Default-Filter (inkl. Auswahl aus geladenen Wahlperioden/Vorgangstypen/Initiativen) definieren.【F:frontend/src/components/SettingsPanel.jsx†L74-L344】
+## Konfiguration & API-Schlüssel
+- Beim ersten Start erzeugt das Backend automatisch `backend/config/app_config.json`. In dieser Datei werden Gemini-, Bundestag- und UI-Einstellungen persistiert.【F:backend/app/config.py†L10-L86】
+- API-Schlüssel können direkt über den Tab **Einstellungen** gepflegt werden. Das Backend speichert sie maskiert und gibt in Responses nur verkürzte Vorschauen zurück.【F:backend/app/main.py†L36-L57】【F:frontend/src/components/SettingsPanel.jsx†L1-L360】
+- Solange kein Gemini- und DIP-Schlüssel vorliegt, bleiben Recherche- und Gemini-Bereich gesperrt; die UI blendet einen entsprechenden Hinweis ein.【F:frontend/src/App.jsx†L8-L116】
+- Standardfilter (Wahlperioden, Vorgangstypen, Initiativen), bevorzugte Sprache und Gemini-Vorgaben lassen sich jederzeit anpassen. Änderungen werden via `POST /api/config` gespeichert.【F:backend/app/main.py†L59-L102】
 
 ## Arbeiten mit der Oberfläche
-1. **DIP-Daten durchsuchen:** Wähle oben den Tab „DIP-Daten“, kombiniere Freitextfilter (Titel/Deskriptor) mit Dropdowns für Wahlperioden, Vorgangstypen, Initiativen oder der Live-Personensuche und starte die Recherche. Ergebnisse enthalten Metadaten, Badge-Übersichten, Aktualisierungszeitpunkte und Links zu PDF/XML-Quellen.【F:frontend/src/components/BundestagSearch.jsx†L52-L331】
-2. **Dokumente für Gemini übernehmen:** Über den Button „Für Gemini übernehmen“ wird der Volltext oder Abstract in den KI-Tab übergeben und kann dort weiterverarbeitet werden.【F:frontend/src/components/BundestagSearch.jsx†L258-L309】
-3. **Gemini-Assistent nutzen:** Wähle Aufgabe, Sprache, Tonfall, Länge und optional zusätzlichen Kontext. Starte die Analyse, kopiere Ergebnisse in die Zwischenablage oder wechsle zwischen Kandidatenvarianten.【F:frontend/src/components/GeminiWorkspace.jsx†L19-L304】
-4. **Einstellungen verwalten:** Hinterlege API-Schlüssel, stelle Standardfilter per Autocomplete ein und definiere UI-Voreinstellungen im Tab „Einstellungen“. Solange kein Schlüssel gespeichert ist, weist ein Hinweis darauf hin und die übrigen Tabs bleiben deaktiviert; Änderungen werden über den Speichern-Button ans Backend übertragen.【F:frontend/src/App.jsx†L8-L116】【F:frontend/src/components/SettingsPanel.jsx†L1-L360】
+1. **DIP-Tab öffnen** – Wählen Sie Datensatz (Vorgänge, Drucksachen, Plenarprotokolle etc.) und setzen Sie Filter über Dropdowns, Autocomplete-Felder oder Freitext. Ergebnisse erscheinen mit Badges, Abstracts und Quellenlinks.【F:frontend/src/components/BundestagSearch.jsx†L52-L331】
+2. **Dokumente an Gemini übergeben** – Über den Button „Für Gemini übernehmen“ wird der ausgewählte Text direkt in den Gemini-Arbeitsbereich übertragen, inklusive Titel und Metadaten.【F:frontend/src/components/BundestagSearch.jsx†L258-L309】
+3. **Gemini-Aufgaben durchführen** – Wählen Sie eine vordefinierte Aufgabe oder formulieren Sie eigene Anweisungen, variieren Sie Temperatur und Stil, vergleichen Sie Antwortvarianten und kopieren Sie Ergebnisse in die Zwischenablage.【F:frontend/src/components/GeminiWorkspace.jsx†L1-L304】
+4. **Einstellungen pflegen** – Hinterlegen Sie Schlüssel, Standardfilter und Oberflächenoptionen. Speichern löst einen Backend-Aufruf aus; erfolgreiche Aktualisierungen werden bestätigt.【F:frontend/src/components/SettingsPanel.jsx†L40-L344】【F:backend/app/main.py†L59-L102】
 
-## Entwicklung & Tests
-- **Backend-Livebetrieb:** `uvicorn app.main:app --reload --port 8000`
-- **Backend-Healthcheck:** `http GET http://localhost:8000/api/health` (oder Browser)
-- **Frontend-Entwicklung:** `npm run dev`
-- **Frontend-Buildprüfung:** `npm run build`
-- **Linting (Frontend):** `npm run lint`
-
-## Produktiver Betrieb
-- Erzeuge ein optimiertes Frontend-Bundle mit `npm run build` und hoste den generierten Output aus `frontend/dist` hinter einem Webserver deiner Wahl.【F:frontend/package.json†L7-L21】
-- Starte das Backend ohne Reloading z. B. mit `uvicorn app.main:app --host 0.0.0.0 --port 8000` hinter einem Reverse Proxy.【F:backend/app/main.py†L12-L104】
-- Setze in produktiven Umgebungen die Variable `VITE_API_BASE_URL`, falls Frontend und Backend unter unterschiedlichen Hosts/Ports laufen (z. B. `.env.local` mit `VITE_API_BASE_URL=https://example.org/api`).【F:frontend/src/api/client.js†L1-L16】
+## Nützliche Befehle für Entwicklung & Tests
+- Backend im Hot-Reload-Modus: `cd backend && uvicorn app.main:app --reload --port 8000`
+- Backend-Healthcheck: `curl http://localhost:8000/api/health`
+- Frontend im Dev-Modus (ohne Kombiskript): `cd frontend && npm run dev`
+- Frontend-Build prüfen: `cd frontend && npm run build`
+- Frontend-Linting: `cd frontend && npm run lint`
 
 ## Troubleshooting
-- **`ModuleNotFoundError` beim Backend-Start:** Stelle sicher, dass die virtuelle Umgebung aktiv ist (`source .venv/bin/activate`) und die Abhängigkeiten installiert wurden.
-- **`npm` findet kein passendes Node.js:** Prüfe mit `node -v`, dass Version ≥ 20 installiert ist. Bei Bedarf die NodeSource-Schritte erneut ausführen.
-- **DIP-Anfragen schlagen fehl:** Kontrolliere Netzwerkzugriff und (falls vorhanden) deinen DIP-API-Key. Fehlerdetails erscheinen als Meldung in der UI, da das Backend Fehlertexte weiterreicht.【F:backend/app/main.py†L106-L154】
-- **Gemini-Tasks werden abgelehnt:** Überprüfe, ob ein gültiger Gemini API-Key hinterlegt wurde und ob der Task-Text nicht leer ist (leere Texte werden mit HTTP 400 abgewiesen).【F:backend/app/main.py†L130-L154】
+- **Virtuelle Umgebung fehlt**: Prüfen Sie, ob `.venv/bin/activate` existiert und vor dem Starten aktiviert wurde. Führen Sie ggf. `./scripts/bootstrap.sh` erneut aus.
+- **DIP-Requests schlagen fehl**: Kontrollieren Sie Netzwerkzugang und den hinterlegten DIP-API-Schlüssel. Das Backend gibt Fehlertexte aus der DIP-API direkt weiter, die UI zeigt sie als Meldung an.【F:backend/app/main.py†L104-L154】
+- **Gemini-Aufgaben werden abgelehnt**: Stellen Sie sicher, dass der Gemini-Schlüssel korrekt ist und ein nicht-leerer Text übermittelt wird; leere Texte führen zu HTTP 400.【F:backend/app/main.py†L126-L154】
+- **Node.js zu alt**: Der Einzeiler installiert bei Bedarf Node.js 20 über NodeSource. Alternativ können Sie `curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -` und anschließend `sudo apt-get install -y nodejs` manuell ausführen.
 
-## Lizenz
-Dieses Projekt ist als Beispielimplementierung für private Arbeitsabläufe gedacht. Nutze und erweitere es nach deinen Anforderungen.
+## Lizenzhinweis
+Tag2 wird als Beispielprojekt für private Recherchen bereitgestellt. Nutzen und erweitern Sie es entsprechend Ihrer Anforderungen.

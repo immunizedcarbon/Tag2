@@ -4,10 +4,12 @@ import {
   AccordionDetails,
   AccordionSummary,
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
   CircularProgress,
+  LinearProgress,
   IconButton,
   MenuItem,
   Paper,
@@ -22,9 +24,9 @@ import SummarizeIcon from '@mui/icons-material/Summarize';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import dayjs from 'dayjs';
 import Grid from '@mui/material/Grid2';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
-import { searchDataset } from '../api/bundestag';
+import { fetchMetadataOptions, searchDataset, searchPersons } from '../api/bundestag';
 import { useAppStore } from '../store/appStore';
 
 const datasetOptions = [
@@ -37,34 +39,27 @@ const datasetOptions = [
   { value: 'aktivitaet', label: 'Aktivitäten' },
 ];
 
-const initialFilters = {
-  title: '',
-  wahlperiode: '',
-  vorgangstyp: '',
-  deskriptor: '',
-  initiative: '',
-  dateStart: '',
-  dateEnd: '',
-};
+const createInitialFilters = (defaults = {}) => ({
+  title: defaults.title ?? '',
+  wahlperioden: defaults.wahlperioden ?? [],
+  vorgangstypen: defaults.vorgangstypen ?? [],
+  initiativen: defaults.initiativen ?? [],
+  deskriptor: defaults.deskriptor ?? '',
+  dateStart: defaults.dateStart ?? '',
+  dateEnd: defaults.dateEnd ?? '',
+  persons: defaults.persons ?? [],
+});
 
 const buildParams = (filters) => {
   const params = {};
   if (filters.title) {
     params['f.titel'] = filters.title.split(';').map((item) => item.trim()).filter(Boolean);
   }
-  if (filters.wahlperiode) {
-    params['f.wahlperiode'] = filters.wahlperiode
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .map((value) => Number.parseInt(value, 10))
-      .filter((value) => !Number.isNaN(value));
+  if (filters.wahlperioden?.length) {
+    params['f.wahlperiode'] = filters.wahlperioden.map((value) => Number(value)).filter((value) => !Number.isNaN(value));
   }
-  if (filters.vorgangstyp) {
-    params['f.vorgangstyp'] = filters.vorgangstyp
-      .split(';')
-      .map((value) => value.trim())
-      .filter(Boolean);
+  if (filters.vorgangstypen?.length) {
+    params['f.vorgangstyp'] = filters.vorgangstypen;
   }
   if (filters.deskriptor) {
     params['f.deskriptor'] = filters.deskriptor
@@ -72,17 +67,22 @@ const buildParams = (filters) => {
       .map((value) => value.trim())
       .filter(Boolean);
   }
-  if (filters.initiative) {
-    params['f.initiative'] = filters.initiative
-      .split(';')
-      .map((value) => value.trim())
-      .filter(Boolean);
+  if (filters.initiativen?.length) {
+    params['f.initiative'] = filters.initiativen;
   }
   if (filters.dateStart) {
     params['f.datum.start'] = filters.dateStart;
   }
   if (filters.dateEnd) {
     params['f.datum.end'] = filters.dateEnd;
+  }
+  if (filters.persons?.length) {
+    const personIds = filters.persons
+      .map((person) => Number.parseInt(person.id, 10))
+      .filter((value) => !Number.isNaN(value));
+    if (personIds.length) {
+      params['f.person_id'] = personIds;
+    }
   }
   return params;
 };
@@ -161,21 +161,69 @@ const SourceLinks = ({ document }) => {
 
 const BundestagSearch = ({ defaultDataset = 'vorgang', defaultFilters }) => {
   const [dataset, setDataset] = useState(defaultDataset);
-  const [filters, setFilters] = useState({ ...initialFilters, ...defaultFilters });
+  const [filters, setFilters] = useState(() => createInitialFilters(defaultFilters));
   const [results, setResults] = useState({ documents: [], cursor: null, numFound: 0, queryParams: null });
+  const [personQuery, setPersonQuery] = useState('');
+  const [personOptions, setPersonOptions] = useState([]);
+  const [personLoading, setPersonLoading] = useState(false);
+
+  const { data: metadata, isLoading: metadataLoading, error: metadataError, refetch: refetchMetadata } = useQuery({
+    queryKey: ['bundestag-options'],
+    queryFn: fetchMetadataOptions,
+    staleTime: 1000 * 60 * 30,
+  });
 
   useEffect(() => {
     setDataset(defaultDataset);
   }, [defaultDataset]);
 
   useEffect(() => {
-    setFilters({ ...initialFilters, ...(defaultFilters || {}) });
+    setFilters(createInitialFilters(defaultFilters));
   }, [defaultFilters]);
+
+  useEffect(() => {
+    if (!personQuery || personQuery.trim().length < 2) {
+      setPersonLoading(false);
+      return undefined;
+    }
+    const handle = setTimeout(async () => {
+      setPersonLoading(true);
+      try {
+        const data = await searchPersons({ query: personQuery.trim() });
+        setPersonOptions(data.options ?? []);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setPersonLoading(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(handle);
+  }, [personQuery]);
+
   const setSelectedContent = useAppStore((state) => state.setSelectedContent);
 
   const mutation = useMutation({
     mutationFn: searchDataset,
   });
+
+  const wahlperiodeOptions = metadata?.wahlperioden ?? [];
+  const vorgangstypOptions = metadata?.vorgangstypen ?? [];
+  const initiativeOptions = metadata?.initiativen ?? [];
+  const combinedPersonOptions = useMemo(() => {
+    const collection = new Map();
+    (personOptions ?? []).forEach((option) => {
+      if (option?.id && !collection.has(option.id)) {
+        collection.set(option.id, option);
+      }
+    });
+    (filters.persons ?? []).forEach((option) => {
+      if (option?.id && !collection.has(option.id)) {
+        collection.set(option.id, option);
+      }
+    });
+    return Array.from(collection.values());
+  }, [personOptions, filters.persons]);
 
   const handleSearch = async () => {
     const params = buildParams(filters);
@@ -212,7 +260,8 @@ const BundestagSearch = ({ defaultDataset = 'vorgang', defaultFilters }) => {
   };
 
   const handleResetFilters = () => {
-    setFilters({ ...initialFilters, ...defaultFilters });
+    setFilters(createInitialFilters(defaultFilters));
+    setPersonQuery('');
   };
 
   const queryInProgress = mutation.isPending;
@@ -230,6 +279,19 @@ const BundestagSearch = ({ defaultDataset = 'vorgang', defaultFilters }) => {
       <Paper elevation={1} sx={{ p: 3 }}>
         <Stack spacing={2}>
           <Typography variant="h6">Filtersuche im DIP</Typography>
+          {metadataLoading ? <LinearProgress /> : null}
+          {metadataError ? (
+            <Alert
+              severity="warning"
+              action={
+                <Button color="inherit" size="small" onClick={() => refetchMetadata()}>
+                  Erneut laden
+                </Button>
+              }
+            >
+              Konnte Filteroptionen nicht laden: {metadataError.message}
+            </Alert>
+          ) : null}
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
@@ -255,23 +317,62 @@ const BundestagSearch = ({ defaultDataset = 'vorgang', defaultFilters }) => {
               />
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
-                label="Wahlperiode(n)"
-                fullWidth
-                helperText="Kommagetrennt"
-                value={filters.wahlperiode}
-                onChange={(event) => setFilters((prev) => ({ ...prev, wahlperiode: event.target.value }))}
+              <Autocomplete
+                multiple
+                options={wahlperiodeOptions}
+                value={filters.wahlperioden}
+                onChange={(_, value) => setFilters((prev) => ({ ...prev, wahlperioden: value }))}
+                disableCloseOnSelect
+                loading={metadataLoading}
+                isOptionEqualToValue={(option, value) => option === value}
+                getOptionLabel={(option) => `Wahlperiode ${option}`}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Wahlperioden"
+                    placeholder="Aus Liste wählen"
+                    helperText="Mehrfachauswahl möglich"
+                  />
+                )}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
-                label="Vorgangstyp (mit ; trennen)"
-                fullWidth
-                value={filters.vorgangstyp}
-                onChange={(event) => setFilters((prev) => ({ ...prev, vorgangstyp: event.target.value }))}
+              <Autocomplete
+                multiple
+                freeSolo
+                options={vorgangstypOptions}
+                value={filters.vorgangstypen}
+                onChange={(_, value) => setFilters((prev) => ({ ...prev, vorgangstypen: value }))}
+                filterSelectedOptions
+                loading={metadataLoading}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Vorgangstypen"
+                    placeholder="Filter auswählen oder tippen"
+                  />
+                )}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
+              <Autocomplete
+                multiple
+                freeSolo
+                options={initiativeOptions}
+                value={filters.initiativen}
+                onChange={(_, value) => setFilters((prev) => ({ ...prev, initiativen: value }))}
+                filterSelectedOptions
+                loading={metadataLoading}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Initiativen"
+                    placeholder="Aus Liste wählen oder tippen"
+                  />
+                )}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 label="Deskriptoren (mit ; trennen)"
                 fullWidth
@@ -279,12 +380,37 @@ const BundestagSearch = ({ defaultDataset = 'vorgang', defaultFilters }) => {
                 onChange={(event) => setFilters((prev) => ({ ...prev, deskriptor: event.target.value }))}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
-                label="Initiative(n)"
-                fullWidth
-                value={filters.initiative}
-                onChange={(event) => setFilters((prev) => ({ ...prev, initiative: event.target.value }))}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Autocomplete
+                multiple
+                options={combinedPersonOptions}
+                value={filters.persons}
+                onChange={(_, value) => setFilters((prev) => ({ ...prev, persons: value }))}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                getOptionLabel={(option) => option.title || `Person ${option.id}`}
+                loading={personLoading}
+                onInputChange={(_, value) => setPersonQuery(value)}
+                filterOptions={(options) => options}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id}>
+                    <Stack spacing={0}>
+                      <Typography variant="body2">{option.title || option.id}</Typography>
+                      {option.fraktion || option.funktion ? (
+                        <Typography variant="caption" color="text.secondary">
+                          {[option.fraktion, option.funktion].filter(Boolean).join(' • ')}
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                  </li>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Personen (mind. 2 Zeichen)"
+                    placeholder="Suchen und auswählen"
+                    helperText="Ergebnisse werden live geladen"
+                  />
+                )}
               />
             </Grid>
             <Grid size={{ xs: 6, md: 4 }}>

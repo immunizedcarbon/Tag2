@@ -1,0 +1,14 @@
+# Node & frontend
+frontend/node_modules/
+frontend/dist/
+
+# Python virtual environments
+backend/.venv/
+.venv/
+
+# Editor / OS
+.DS_Store
+*.log
+
+# Local configuration
+backend/config/app_config.json

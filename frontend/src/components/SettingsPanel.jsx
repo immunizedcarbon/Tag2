@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Divider,
+  LinearProgress,
   MenuItem,
   Paper,
   Slider,
@@ -12,9 +14,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { updateConfig } from '../api/config';
+import { fetchMetadataOptions } from '../api/bundestag';
 
 const datasetOptions = [
   { value: 'vorgang', label: 'Vorgänge' },
@@ -25,7 +28,7 @@ const datasetOptions = [
   { value: 'aktivitaet', label: 'Aktivitäten' },
 ];
 
-const SettingsPanel = ({ config }) => {
+const SettingsPanel = ({ config, requiresSetup = false }) => {
   const queryClient = useQueryClient();
   const [geminiKey, setGeminiKey] = useState('');
   const [geminiKeyTouched, setGeminiKeyTouched] = useState(false);
@@ -37,11 +40,25 @@ const SettingsPanel = ({ config }) => {
   const [baseUrl, setBaseUrl] = useState('https://search.dip.bundestag.de/api/v1');
   const [defaultDataset, setDefaultDataset] = useState('vorgang');
   const [filterTitle, setFilterTitle] = useState('');
-  const [filterWahlperiode, setFilterWahlperiode] = useState('');
-  const [filterVorgangstyp, setFilterVorgangstyp] = useState('');
+  const [filterWahlperioden, setFilterWahlperioden] = useState([]);
+  const [filterVorgangstypen, setFilterVorgangstypen] = useState([]);
+  const [filterInitiativen, setFilterInitiativen] = useState([]);
   const [language, setLanguage] = useState('de');
   const [defaultTask, setDefaultTask] = useState('summary');
   const [feedback, setFeedback] = useState(null);
+
+  const hasBundestagKey = Boolean(config?.bundestag?.has_api_key);
+
+  const { data: metadata, isLoading: metadataLoading, error: metadataError, refetch: refetchMetadata } = useQuery({
+    queryKey: ['bundestag-options'],
+    queryFn: fetchMetadataOptions,
+    enabled: hasBundestagKey,
+    staleTime: 1000 * 60 * 30,
+  });
+
+  const wahlperiodeOptions = metadata?.wahlperioden ?? [];
+  const vorgangstypOptions = metadata?.vorgangstypen ?? [];
+  const initiativeOptions = metadata?.initiativen ?? [];
 
   useEffect(() => {
     if (!config) return;
@@ -54,9 +71,34 @@ const SettingsPanel = ({ config }) => {
     const titleFilter = filters['f.titel'];
     setFilterTitle(Array.isArray(titleFilter) ? titleFilter.join('; ') : titleFilter ?? '');
     const wahlperiodeFilter = filters['f.wahlperiode'];
-    setFilterWahlperiode(Array.isArray(wahlperiodeFilter) ? wahlperiodeFilter.join(',') : wahlperiodeFilter ?? '');
+    if (Array.isArray(wahlperiodeFilter)) {
+      setFilterWahlperioden(
+        wahlperiodeFilter
+          .map((entry) => Number.parseInt(entry, 10))
+          .filter((value) => !Number.isNaN(value))
+      );
+    } else if (wahlperiodeFilter) {
+      const parsed = Number.parseInt(wahlperiodeFilter, 10);
+      setFilterWahlperioden(Number.isNaN(parsed) ? [] : [parsed]);
+    } else {
+      setFilterWahlperioden([]);
+    }
     const vorgangstypFilter = filters['f.vorgangstyp'];
-    setFilterVorgangstyp(Array.isArray(vorgangstypFilter) ? vorgangstypFilter.join('; ') : vorgangstypFilter ?? '');
+    setFilterVorgangstypen(
+      Array.isArray(vorgangstypFilter)
+        ? vorgangstypFilter.map((entry) => String(entry))
+        : vorgangstypFilter
+          ? [String(vorgangstypFilter)]
+          : []
+    );
+    const initiativeFilter = filters['f.initiative'];
+    setFilterInitiativen(
+      Array.isArray(initiativeFilter)
+        ? initiativeFilter.map((entry) => String(entry))
+        : initiativeFilter
+          ? [String(initiativeFilter)]
+          : []
+    );
     setLanguage(config.ui?.preferred_language ?? 'de');
     setDefaultTask(config.ui?.default_gemini_task ?? 'summary');
     setGeminiKey('');
@@ -85,16 +127,14 @@ const SettingsPanel = ({ config }) => {
     if (filterTitle.trim()) {
       filters['f.titel'] = filterTitle.split(';').map((entry) => entry.trim()).filter(Boolean);
     }
-    if (filterWahlperiode.trim()) {
-      filters['f.wahlperiode'] = filterWahlperiode
-        .split(',')
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-        .map((value) => Number.parseInt(value, 10))
-        .filter((value) => !Number.isNaN(value));
+    if (filterWahlperioden.length) {
+      filters['f.wahlperiode'] = filterWahlperioden;
     }
-    if (filterVorgangstyp.trim()) {
-      filters['f.vorgangstyp'] = filterVorgangstyp.split(';').map((entry) => entry.trim()).filter(Boolean);
+    if (filterVorgangstypen.length) {
+      filters['f.vorgangstyp'] = filterVorgangstypen;
+    }
+    if (filterInitiativen.length) {
+      filters['f.initiative'] = filterInitiativen;
     }
     return filters;
   };
@@ -138,9 +178,34 @@ const SettingsPanel = ({ config }) => {
     const titleFilter = filters['f.titel'];
     setFilterTitle(Array.isArray(titleFilter) ? titleFilter.join('; ') : titleFilter ?? '');
     const wahlperiodeFilter = filters['f.wahlperiode'];
-    setFilterWahlperiode(Array.isArray(wahlperiodeFilter) ? wahlperiodeFilter.join(',') : wahlperiodeFilter ?? '');
+    if (Array.isArray(wahlperiodeFilter)) {
+      setFilterWahlperioden(
+        wahlperiodeFilter
+          .map((entry) => Number.parseInt(entry, 10))
+          .filter((value) => !Number.isNaN(value))
+      );
+    } else if (wahlperiodeFilter) {
+      const parsed = Number.parseInt(wahlperiodeFilter, 10);
+      setFilterWahlperioden(Number.isNaN(parsed) ? [] : [parsed]);
+    } else {
+      setFilterWahlperioden([]);
+    }
     const vorgangstypFilter = filters['f.vorgangstyp'];
-    setFilterVorgangstyp(Array.isArray(vorgangstypFilter) ? vorgangstypFilter.join('; ') : vorgangstypFilter ?? '');
+    setFilterVorgangstypen(
+      Array.isArray(vorgangstypFilter)
+        ? vorgangstypFilter.map((entry) => String(entry))
+        : vorgangstypFilter
+          ? [String(vorgangstypFilter)]
+          : []
+    );
+    const initiativeFilter = filters['f.initiative'];
+    setFilterInitiativen(
+      Array.isArray(initiativeFilter)
+        ? initiativeFilter.map((entry) => String(entry))
+        : initiativeFilter
+          ? [String(initiativeFilter)]
+          : []
+    );
     setLanguage(config.ui?.preferred_language ?? 'de');
     setDefaultTask(config.ui?.default_gemini_task ?? 'summary');
     setGeminiKey('');
@@ -151,6 +216,12 @@ const SettingsPanel = ({ config }) => {
 
   return (
     <Stack spacing={3}>
+      {requiresSetup ? (
+        <Alert severity="info">
+          Hinterlege beide API-Schlüssel und speichere die Einstellungen. Danach kannst du Suche und Gemini-Assistent ohne
+          weitere Schritte starten.
+        </Alert>
+      ) : null}
       <Paper elevation={1} sx={{ p: 3 }}>
         <Stack spacing={2}>
           <Typography variant="h6">Gemini-Konfiguration</Typography>
@@ -236,17 +307,74 @@ const SettingsPanel = ({ config }) => {
             onChange={(event) => setFilterTitle(event.target.value)}
             fullWidth
           />
-          <TextField
-            label="Wahlperioden (Kommagetrennt)"
-            value={filterWahlperiode}
-            onChange={(event) => setFilterWahlperiode(event.target.value)}
-            fullWidth
+          {!hasBundestagKey ? (
+            <Alert severity="info">
+              Speichere zuerst einen gültigen DIP API-Key, um Vorschlagslisten für Wahlperioden, Vorgangstypen und Initiativen
+              zu laden.
+            </Alert>
+          ) : null}
+          {hasBundestagKey && metadataLoading ? <LinearProgress /> : null}
+          {metadataError ? (
+            <Alert
+              severity="warning"
+              action={
+                <Button color="inherit" size="small" onClick={() => refetchMetadata()}>
+                  Erneut laden
+                </Button>
+              }
+            >
+              Filteroptionen konnten nicht geladen werden: {metadataError.message}
+            </Alert>
+          ) : null}
+          <Autocomplete
+            multiple
+            options={wahlperiodeOptions}
+            value={filterWahlperioden}
+            onChange={(_, value) => setFilterWahlperioden(value)}
+            disableCloseOnSelect
+            loading={metadataLoading && hasBundestagKey}
+            isOptionEqualToValue={(option, value) => option === value}
+            getOptionLabel={(option) => `Wahlperiode ${option}`}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Wahlperioden"
+                placeholder="Aus Liste auswählen"
+                helperText="Mehrfachauswahl möglich"
+              />
+            )}
           />
-          <TextField
-            label="Vorgangstypen (mit ; trennen)"
-            value={filterVorgangstyp}
-            onChange={(event) => setFilterVorgangstyp(event.target.value)}
-            fullWidth
+          <Autocomplete
+            multiple
+            freeSolo
+            options={vorgangstypOptions}
+            value={filterVorgangstypen}
+            onChange={(_, value) => setFilterVorgangstypen(value)}
+            filterSelectedOptions
+            loading={metadataLoading && hasBundestagKey}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Vorgangstypen"
+                placeholder="Aus Liste wählen oder tippen"
+              />
+            )}
+          />
+          <Autocomplete
+            multiple
+            freeSolo
+            options={initiativeOptions}
+            value={filterInitiativen}
+            onChange={(_, value) => setFilterInitiativen(value)}
+            filterSelectedOptions
+            loading={metadataLoading && hasBundestagKey}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Initiativen"
+                placeholder="Aus Liste wählen oder tippen"
+              />
+            )}
           />
         </Stack>
       </Paper>

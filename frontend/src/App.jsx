@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AppBar,
   Box,
@@ -50,17 +50,40 @@ const App = () => {
   });
 
   const defaultDataset = config?.bundestag?.default_dataset ?? 'vorgang';
+  const requiresSetup = Boolean(config) && !(config?.gemini?.has_api_key && config?.bundestag?.has_api_key);
+
+  useEffect(() => {
+    if (requiresSetup && tab !== 2) {
+      setTab(2);
+    }
+  }, [requiresSetup, tab]);
 
   const defaultFilters = useMemo(() => {
     const filters = config?.bundestag?.default_filters ?? {};
+    const toArray = (value) => {
+      if (Array.isArray(value)) return value;
+      if (value === undefined || value === null || value === '') return [];
+      return [value];
+    };
+
+    const wahlperioden = toArray(filters['f.wahlperiode'])
+      .map((entry) => Number.parseInt(entry, 10))
+      .filter((value) => !Number.isNaN(value));
+
+    const vorgangstypen = toArray(filters['f.vorgangstyp']).map((entry) => String(entry));
+    const initiativen = toArray(filters['f.initiative']).map((entry) => String(entry));
+    const titelFilter = toArray(filters['f.titel']).map((entry) => String(entry));
+    const deskriptorFilter = toArray(filters['f.deskriptor']).map((entry) => String(entry));
+
     return {
-      title: Array.isArray(filters['f.titel']) ? filters['f.titel'].join('; ') : filters['f.titel'] ?? '',
-      wahlperiode: Array.isArray(filters['f.wahlperiode']) ? filters['f.wahlperiode'].join(',') : filters['f.wahlperiode'] ?? '',
-      vorgangstyp: Array.isArray(filters['f.vorgangstyp']) ? filters['f.vorgangstyp'].join('; ') : filters['f.vorgangstyp'] ?? '',
-      deskriptor: Array.isArray(filters['f.deskriptor']) ? filters['f.deskriptor'].join('; ') : filters['f.deskriptor'] ?? '',
-      initiative: Array.isArray(filters['f.initiative']) ? filters['f.initiative'].join('; ') : filters['f.initiative'] ?? '',
+      title: titelFilter.join('; '),
+      wahlperioden,
+      vorgangstypen,
+      initiativen,
+      deskriptor: deskriptorFilter.join('; '),
       dateStart: filters['f.datum.start'] ?? '',
       dateEnd: filters['f.datum.end'] ?? '',
+      persons: [],
     };
   }, [config]);
 
@@ -91,7 +114,7 @@ const App = () => {
       case 1:
         return <GeminiWorkspace config={config} />;
       case 2:
-        return <SettingsPanel config={config} />;
+        return <SettingsPanel config={config} requiresSetup={requiresSetup} />;
       default:
         return null;
     }
@@ -117,14 +140,20 @@ const App = () => {
             indicatorColor="secondary"
             sx={{ ml: 4 }}
           >
-            <Tab label="DIP-Daten" />
-            <Tab label="Gemini-Assistent" />
+            <Tab label="DIP-Daten" disabled={requiresSetup} />
+            <Tab label="Gemini-Assistent" disabled={requiresSetup} />
             <Tab label="Einstellungen" />
           </Tabs>
         </Toolbar>
       </AppBar>
       <Box sx={{ py: 4 }}>
         <Container maxWidth="lg">
+          {requiresSetup ? (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              Hinterlege zuerst die API-Schlüssel für DIP und Gemini im Tab „Einstellungen“. Danach stehen Suche und Assistent
+              ohne weitere Schritte zur Verfügung.
+            </Alert>
+          ) : null}
           {renderContent()}
         </Container>
       </Box>

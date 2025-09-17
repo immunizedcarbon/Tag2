@@ -6,7 +6,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
-from .bundestag import fetch_dataset, fetch_document
+from .bundestag import (
+    fetch_dataset,
+    fetch_document,
+    fetch_metadata_options,
+    search_persons,
+)
 from .gemini import generate_with_gemini
 from .schemas import ConfigUpdate, DatasetRequest, GeminiTaskRequest
 
@@ -115,4 +120,20 @@ async def gemini_task(request: GeminiTaskRequest) -> Dict[str, Any]:
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/bundestag/options")
+async def bundestag_options() -> Dict[str, Any]:
+    try:
+        return await fetch_metadata_options()
+    except Exception as exc:  # pragma: no cover - API Feedback
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.get("/api/bundestag/persons")
+async def bundestag_persons(q: str = "", cursor: str | None = None) -> Dict[str, Any]:
+    try:
+        return await search_persons(q, cursor)
+    except Exception as exc:  # pragma: no cover - API Feedback
         raise HTTPException(status_code=502, detail=str(exc)) from exc
